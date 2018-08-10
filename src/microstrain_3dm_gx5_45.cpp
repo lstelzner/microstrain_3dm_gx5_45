@@ -26,6 +26,7 @@ along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
 #include <string>
 
 namespace Microstrain {
+const float kkdT = 0.5;
 Microstrain::Microstrain()
     :  // Initialization list
       filter_valid_packet_count_(0),
@@ -50,17 +51,18 @@ Microstrain::~Microstrain() {
   // pass
 }
 
-Microstrain::save_settings() {}
+void Microstrain::save_settings() {}
 
-Microstrain::setup_gps() {}
+void Microstrain::setup_gps() {}
 
-Microstrain::setup_odom() {}
-Microstrain::setup_imu() {
+void Microstrain::setup_odom() {}
+
+void Microstrain::setup_imu() {
   while (mip_3dm_cmd_get_ahrs_base_rate(&device_interface_, &base_rate) !=
          MIP_INTERFACE_OK) {
   }
   ROS_INFO("AHRS Base Rate => %d Hz", base_rate);
-  ros::Duration(dT).sleep();
+  ros::Duration(kdT).sleep();
   // Deterimine decimation to get close to goal rate
   u8 imu_decimation = (u8)((float)base_rate / (float)imu_rate_);
   ROS_INFO("AHRS decimation set to %#04X", imu_decimation);
@@ -80,7 +82,7 @@ Microstrain::setup_imu() {
              &data_stream_format_num_entries, data_stream_format_descriptors,
              data_stream_format_decimation) != MIP_INTERFACE_OK) {
   }
-  ros::Duration(dT).sleep();
+  ros::Duration(kdT).sleep();
   // Poll to verify
   ROS_INFO("Poll AHRS data to verify");
   while (mip_3dm_cmd_poll_ahrs(
@@ -88,7 +90,7 @@ Microstrain::setup_imu() {
              data_stream_format_num_entries,
              data_stream_format_descriptors) != MIP_INTERFACE_OK) {
   }
-  ros::Duration(dT).sleep();
+  ros::Duration(kdT).sleep();
   // Save
   if (save_settings) {
     ROS_INFO("Saving AHRS data settings");
@@ -96,7 +98,7 @@ Microstrain::setup_imu() {
                                            MIP_FUNCTION_SELECTOR_STORE_EEPROM,
                                            0, NULL, NULL) != MIP_INTERFACE_OK) {
     }
-    ros::Duration(dT).sleep();
+    ros::Duration(kdT).sleep();
   }
 
   // Declination Source
@@ -106,7 +108,7 @@ Microstrain::setup_imu() {
              &device_interface_, MIP_FUNCTION_SELECTOR_WRITE,
              &declination_source_u8) != MIP_INTERFACE_OK) {
   }
-  ros::Duration(dT).sleep();
+  ros::Duration(kdT).sleep();
   // Read back the declination source
   ROS_INFO("Reading back declination source");
   while (mip_filter_declination_source(
@@ -119,16 +121,17 @@ Microstrain::setup_imu() {
     ROS_WARN("Failed to set the declination source to %#04X!",
              declination_source_u8);
   }
-  ros::Duration(dT).sleep();
+  ros::Duration(kdT).sleep();
   if (save_settings) {
     ROS_INFO("Saving declination source settings to EEPROM");
     while (mip_filter_declination_source(&device_interface_,
                                          MIP_FUNCTION_SELECTOR_STORE_EEPROM,
                                          NULL) != MIP_INTERFACE_OK) {
     }
-    ros::Duration(dT).sleep();
+    ros::Duration(kdT).sleep();
   }
 }
+
 void Microstrain::run() {
   // Variables for device configuration, ROS parameters, etc.
   u32 com_port, baudrate;
@@ -294,7 +297,7 @@ void Microstrain::run() {
 
   ////////////////////////////////////////
   // Device setup
-  float dT = 0.5;  // common sleep time after setup communications
+  float kdT = 0.5;  // common sleep time after setup communications
   if (device_setup) {
     // Put device into standard mode - we never really use "direct mode"
     ROS_INFO("Putting device communications into 'standard mode'");
@@ -309,7 +312,7 @@ void Microstrain::run() {
                                &com_mode) != MIP_INTERFACE_OK) {
     }
     ROS_INFO("Sleep for a second...");
-    ros::Duration(dT).sleep();
+    ros::Duration(kdT).sleep();
     ROS_INFO("Right mode?");
     if (com_mode != MIP_SDK_GX4_45_IMU_STANDARD_MODE) {
       ROS_ERROR("Appears we didn't get into standard mode!");
@@ -319,11 +322,12 @@ void Microstrain::run() {
     ROS_INFO("Idling Device: Stopping data streams and/or waking from sleep");
     while (mip_base_cmd_idle(&device_interface_) != MIP_INTERFACE_OK) {
     }
-    ros::Duration(dT).sleep();
+    ros::Duration(kdT).sleep();
 
     // AHRS Setup
     // Get base rate
     if (publish_imu_) {
+      setup_imu();
     }  // end of AHRS setup
 
     // GPS Setup
@@ -333,7 +337,7 @@ void Microstrain::run() {
       }
       ROS_INFO("GPS Base Rate => %d Hz", base_rate);
       u8 gps_decimation = (u8)((float)base_rate / (float)gps_rate_);
-      ros::Duration(dT).sleep();
+      ros::Duration(kdT).sleep();
 
       ////////// GPS Message Format
       // Set
@@ -351,7 +355,7 @@ void Microstrain::run() {
                  data_stream_format_descriptors,
                  data_stream_format_decimation) != MIP_INTERFACE_OK) {
       }
-      ros::Duration(dT).sleep();
+      ros::Duration(kdT).sleep();
       // Save
       if (save_settings) {
         ROS_INFO("Saving GPS data settings");
@@ -359,7 +363,7 @@ void Microstrain::run() {
                    &device_interface_, MIP_FUNCTION_SELECTOR_STORE_EEPROM, 0,
                    NULL, NULL) != MIP_INTERFACE_OK) {
         }
-        ros::Duration(dT).sleep();
+        ros::Duration(kdT).sleep();
       }
     }  // end of GPS setup
     if (enable_filter) {
@@ -367,7 +371,7 @@ void Microstrain::run() {
              MIP_INTERFACE_OK) {
       }
       ROS_INFO("AHRS Base Rate => %d Hz", base_rate);
-      ros::Duration(dT).sleep();
+      ros::Duration(kdT).sleep();
       // Deterimine decimation to get close to goal rate
       u8 imu_decimation = (u8)((float)base_rate / (float)imu_rate_);
       ROS_INFO("AHRS decimation set to %#04X", imu_decimation);
@@ -390,7 +394,7 @@ void Microstrain::run() {
                  data_stream_format_descriptors,
                  data_stream_format_decimation) != MIP_INTERFACE_OK) {
       }
-      ros::Duration(dT).sleep();
+      ros::Duration(kdT).sleep();
       // Poll to verify
       ROS_INFO("Poll AHRS data to verify");
       while (mip_3dm_cmd_poll_ahrs(
@@ -398,7 +402,7 @@ void Microstrain::run() {
                  data_stream_format_num_entries,
                  data_stream_format_descriptors) != MIP_INTERFACE_OK) {
       }
-      ros::Duration(dT).sleep();
+      ros::Duration(kdT).sleep();
       // Save
       if (save_settings) {
         ROS_INFO("Saving AHRS data settings");
@@ -406,7 +410,7 @@ void Microstrain::run() {
                    &device_interface_, MIP_FUNCTION_SELECTOR_STORE_EEPROM, 0,
                    NULL, NULL) != MIP_INTERFACE_OK) {
         }
-        ros::Duration(dT).sleep();
+        ros::Duration(kdT).sleep();
       }
 
       // Declination Source
@@ -416,7 +420,7 @@ void Microstrain::run() {
                  &device_interface_, MIP_FUNCTION_SELECTOR_WRITE,
                  &declination_source_u8) != MIP_INTERFACE_OK) {
       }
-      ros::Duration(dT).sleep();
+      ros::Duration(kdT).sleep();
       // Read back the declination source
       ROS_INFO("Reading back declination source");
       while (mip_filter_declination_source(
@@ -430,14 +434,14 @@ void Microstrain::run() {
         ROS_WARN("Failed to set the declination source to %#04X!",
                  declination_source_u8);
       }
-      ros::Duration(dT).sleep();
+      ros::Duration(kdT).sleep();
       if (save_settings) {
         ROS_INFO("Saving declination source settings to EEPROM");
         while (mip_filter_declination_source(&device_interface_,
                                              MIP_FUNCTION_SELECTOR_STORE_EEPROM,
                                              NULL) != MIP_INTERFACE_OK) {
         }
-        ros::Duration(dT).sleep();
+        ros::Duration(kdT).sleep();
       }
 
     }  // end of FILTER setup
@@ -448,7 +452,7 @@ void Microstrain::run() {
     }
     ROS_INFO("FILTER Base Rate => %d Hz", base_rate);
     u8 nav_decimation = (u8)((float)base_rate / (float)nav_rate_);
-    ros::Duration(dT).sleep();
+    ros::Duration(kdT).sleep();
 
     ////////// Filter Message Format
     // Set
@@ -477,7 +481,7 @@ void Microstrain::run() {
                &data_stream_format_num_entries, data_stream_format_descriptors,
                data_stream_format_decimation) != MIP_INTERFACE_OK) {
     }
-    ros::Duration(dT).sleep();
+    ros::Duration(kdT).sleep();
     // Poll to verify
     ROS_INFO("Poll filter data to test stream");
     while (mip_3dm_cmd_poll_filter(
@@ -485,7 +489,7 @@ void Microstrain::run() {
                data_stream_format_num_entries,
                data_stream_format_descriptors) != MIP_INTERFACE_OK) {
     }
-    ros::Duration(dT).sleep();
+    ros::Duration(kdT).sleep();
     // Save
     if (save_settings) {
       ROS_INFO("Saving Filter data settings");
@@ -493,7 +497,7 @@ void Microstrain::run() {
                  &device_interface_, MIP_FUNCTION_SELECTOR_STORE_EEPROM, 0,
                  NULL, NULL) != MIP_INTERFACE_OK) {
       }
-      ros::Duration(dT).sleep();
+      ros::Duration(kdT).sleep();
     }
     // Dynamics Mode
     // Set dynamics mode
@@ -502,7 +506,7 @@ void Microstrain::run() {
                &device_interface_, MIP_FUNCTION_SELECTOR_WRITE,
                &dynamics_mode) != MIP_INTERFACE_OK) {
     }
-    ros::Duration(dT).sleep();
+    ros::Duration(kdT).sleep();
     // Readback dynamics mode
     if (readback_settings) {
       // Read the settings back
@@ -511,7 +515,7 @@ void Microstrain::run() {
                  &device_interface_, MIP_FUNCTION_SELECTOR_READ,
                  &readback_dynamics_mode) != MIP_INTERFACE_OK) {
       }
-      ros::Duration(dT).sleep();
+      ros::Duration(kdT).sleep();
       if (dynamics_mode == readback_dynamics_mode)
         ROS_INFO("Success: Dynamics mode setting is: %#04X",
                  readback_dynamics_mode);
@@ -525,7 +529,7 @@ void Microstrain::run() {
                  &device_interface_, MIP_FUNCTION_SELECTOR_STORE_EEPROM,
                  NULL) != MIP_INTERFACE_OK) {
       }
-      ros::Duration(dT).sleep();
+      ros::Duration(kdT).sleep();
     }
 
     // Heading Source
@@ -536,7 +540,7 @@ void Microstrain::run() {
                                      MIP_FUNCTION_SELECTOR_WRITE,
                                      &heading_source) != MIP_INTERFACE_OK) {
     }
-    ros::Duration(dT).sleep();
+    ros::Duration(kdT).sleep();
 
     ROS_INFO("Read back heading source...");
     while (mip_filter_heading_source(
@@ -544,7 +548,7 @@ void Microstrain::run() {
                &readback_headingsource) != MIP_INTERFACE_OK) {
     }
     ROS_INFO("Heading source = %#04X", readback_headingsource);
-    ros::Duration(dT).sleep();
+    ros::Duration(kdT).sleep();
 
     if (save_settings) {
       ROS_INFO("Saving heading source to EEPROM");
@@ -552,7 +556,7 @@ void Microstrain::run() {
                                        MIP_FUNCTION_SELECTOR_STORE_EEPROM,
                                        NULL) != MIP_INTERFACE_OK) {
       }
-      ros::Duration(dT).sleep();
+      ros::Duration(kdT).sleep();
     }
   }  // end of Filter setup
 
@@ -566,7 +570,7 @@ void Microstrain::run() {
                                         MIP_FUNCTION_SELECTOR_WRITE,
                                         &auto_init_u8) != MIP_INTERFACE_OK) {
   }
-  ros::Duration(dT).sleep();
+  ros::Duration(kdT).sleep();
 
   if (readback_settings) {
     // Read the settings back
@@ -575,7 +579,7 @@ void Microstrain::run() {
                &device_interface_, MIP_FUNCTION_SELECTOR_READ,
                &readback_auto_init) != MIP_INTERFACE_OK) {
     }
-    ros::Duration(dT).sleep();
+    ros::Duration(kdT).sleep();
     if (auto_init == readback_auto_init)
       ROS_INFO("Success: Auto init. setting is: %#04X", readback_auto_init);
     else
@@ -589,11 +593,11 @@ void Microstrain::run() {
                                           MIP_FUNCTION_SELECTOR_STORE_EEPROM,
                                           NULL) != MIP_INTERFACE_OK) {
     }
-    ros::Duration(dT).sleep();
+    ros::Duration(kdT).sleep();
   }
 
   // Enable Data streams
-  dT = 0.25;
+  kdT = 0.25;
   if (publish_imu_) {
     ROS_INFO("Enabling AHRS stream");
     enable = 0x01;
@@ -601,7 +605,7 @@ void Microstrain::run() {
                &device_interface_, MIP_FUNCTION_SELECTOR_WRITE,
                MIP_3DM_AHRS_DATASTREAM, &enable) != MIP_INTERFACE_OK) {
     }
-    ros::Duration(dT).sleep();
+    ros::Duration(kdT).sleep();
   }
   if (publish_odom_) {
     ROS_INFO("Enabling Filter stream");
@@ -610,7 +614,7 @@ void Microstrain::run() {
                &device_interface_, MIP_FUNCTION_SELECTOR_WRITE,
                MIP_3DM_INS_DATASTREAM, &enable) != MIP_INTERFACE_OK) {
     }
-    ros::Duration(dT).sleep();
+    ros::Duration(kdT).sleep();
   }
   if (publish_gps_) {
     ROS_INFO("Enabling GPS stream");
@@ -619,7 +623,7 @@ void Microstrain::run() {
                &device_interface_, MIP_FUNCTION_SELECTOR_WRITE,
                MIP_3DM_GPS_DATASTREAM, &enable) != MIP_INTERFACE_OK) {
     }
-    ros::Duration(dT).sleep();
+    ros::Duration(kdT).sleep();
   }
 
   ROS_INFO("End of device setup - starting streaming");
@@ -632,7 +636,7 @@ else {
 ROS_INFO("Reset filter");
 while (mip_filter_reset_filter(&device_interface_) != MIP_INTERFACE_OK) {
 }
-ros::Duration(dT).sleep();
+ros::Duration(kdT).sleep();
 
 // Loop
 // Determine loop rate as 2*(max update rate), but abs. max of 1kHz
