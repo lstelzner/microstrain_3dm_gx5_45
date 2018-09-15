@@ -33,6 +33,8 @@ extern "C" {
 #include "mip_sdk.h"
 }
 
+#include "microstrain.h"
+
 #include <unistd.h>
 #include <cstdio>
 
@@ -61,7 +63,7 @@ namespace Microstrain {
  * \brief Microstrain class
  *
  */
-class Microstrain_25 {
+class Microstrain_25 : public MicrostrainDevice {
  public:
   /**
    * Contructor
@@ -83,6 +85,8 @@ class Microstrain_25 {
   //! @brief AHRS callback
   void ahrs_packet_callback(void *user_ptr, u8 *packet, u16 packet_size,
                             u8 callback_type);
+  void gps_packet_callback(void *user_ptr, u8 *packet, u16 packet_size,
+                           u8 callback_type);
 
  private:
   //! @brief Reset KF service callback
@@ -158,23 +162,24 @@ class Microstrain_25 {
 
   // Update rates
   int imu_rate_;
-};  // Microstrain class
+};
 
-// Define wrapper functions that call the Microstrain member functions
-#ifdef __cplusplus
-extern "C"
-#endif
-{
+// // Define wrapper functions that call the Microstrain member functions
+// #ifdef __cplusplus
+// extern "C"
+// #endif
+// {
 
-/**
- * Callback for KF estimate packets from sensor.
- */
-void filter_packet_callback_wrapper(void *user_ptr, u8 *packet, u16 packet_size,
-                                    u8 callback_type);
+// /**
+//  * Callback for KF estimate packets from sensor.
+//  */
+// void filter_packet_callback_wrapper(void *user_ptr, u8 *packet, u16
+// packet_size,
+//                                     u8 callback_type);
 
-#ifdef __cplusplus
-}
-#endif
+// #ifdef __cplusplus
+// }
+// #endif
 
 }  // namespace Microstrain
 

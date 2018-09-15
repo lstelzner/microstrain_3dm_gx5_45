@@ -26,7 +26,6 @@ along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
 #include <string>
 
 namespace Microstrain {
-const float kkdT = 0.5;
 Microstrain::Microstrain()
     :  // Initialization list
       filter_valid_packet_count_(0),
@@ -50,88 +49,6 @@ Microstrain::Microstrain()
 Microstrain::~Microstrain() {
   // pass
 }
-
-void Microstrain::save_settings() {}
-
-void Microstrain::setup_gps() {}
-
-void Microstrain::setup_odom() {}
-
-void Microstrain::setup_imu() {
-  while (mip_3dm_cmd_get_ahrs_base_rate(&device_interface_, &base_rate) !=
-         MIP_INTERFACE_OK) {
-  }
-  ROS_INFO("AHRS Base Rate => %d Hz", base_rate);
-  ros::Duration(kdT).sleep();
-  // Deterimine decimation to get close to goal rate
-  u8 imu_decimation = (u8)((float)base_rate / (float)imu_rate_);
-  ROS_INFO("AHRS decimation set to %#04X", imu_decimation);
-
-  // AHRS Message Format
-  // Set message format
-  ROS_INFO("Setting the AHRS message format");
-  data_stream_format_descriptors[0] = MIP_AHRS_DATA_ACCEL_SCALED;
-  data_stream_format_descriptors[1] = MIP_AHRS_DATA_GYRO_SCALED;
-  data_stream_format_descriptors[2] = MIP_AHRS_DATA_QUATERNION;
-  data_stream_format_decimation[0] = imu_decimation;  // 0x32;
-  data_stream_format_decimation[1] = imu_decimation;  // 0x32;
-  data_stream_format_decimation[2] = imu_decimation;  // 0x32;
-  data_stream_format_num_entries = 3;
-  while (mip_3dm_cmd_ahrs_message_format(
-             &device_interface_, MIP_FUNCTION_SELECTOR_WRITE,
-             &data_stream_format_num_entries, data_stream_format_descriptors,
-             data_stream_format_decimation) != MIP_INTERFACE_OK) {
-  }
-  ros::Duration(kdT).sleep();
-  // Poll to verify
-  ROS_INFO("Poll AHRS data to verify");
-  while (mip_3dm_cmd_poll_ahrs(
-             &device_interface_, MIP_3DM_POLLING_ENABLE_ACK_NACK,
-             data_stream_format_num_entries,
-             data_stream_format_descriptors) != MIP_INTERFACE_OK) {
-  }
-  ros::Duration(kdT).sleep();
-  // Save
-  if (save_settings) {
-    ROS_INFO("Saving AHRS data settings");
-    while (mip_3dm_cmd_ahrs_message_format(&device_interface_,
-                                           MIP_FUNCTION_SELECTOR_STORE_EEPROM,
-                                           0, NULL, NULL) != MIP_INTERFACE_OK) {
-    }
-    ros::Duration(kdT).sleep();
-  }
-
-  // Declination Source
-  // Set declination
-  ROS_INFO("Setting declination source to %#04X", declination_source_u8);
-  while (mip_filter_declination_source(
-             &device_interface_, MIP_FUNCTION_SELECTOR_WRITE,
-             &declination_source_u8) != MIP_INTERFACE_OK) {
-  }
-  ros::Duration(kdT).sleep();
-  // Read back the declination source
-  ROS_INFO("Reading back declination source");
-  while (mip_filter_declination_source(
-             &device_interface_, MIP_FUNCTION_SELECTOR_READ,
-             &readback_declination_source) != MIP_INTERFACE_OK) {
-  }
-  if (declination_source_u8 == readback_declination_source) {
-    ROS_INFO("Success: Declination source set to %#04X", declination_source_u8);
-  } else {
-    ROS_WARN("Failed to set the declination source to %#04X!",
-             declination_source_u8);
-  }
-  ros::Duration(kdT).sleep();
-  if (save_settings) {
-    ROS_INFO("Saving declination source settings to EEPROM");
-    while (mip_filter_declination_source(&device_interface_,
-                                         MIP_FUNCTION_SELECTOR_STORE_EEPROM,
-                                         NULL) != MIP_INTERFACE_OK) {
-    }
-    ros::Duration(kdT).sleep();
-  }
-}
-
 void Microstrain::run() {
   // Variables for device configuration, ROS parameters, etc.
   u32 com_port, baudrate;
@@ -148,7 +65,6 @@ void Microstrain::run() {
   u8 declination_source_u8;
   u8 readback_declination_source;
   double declination;
-  bool enable_filter = true;
 
   // Variables
   tf2::Quaternion quat;
@@ -297,7 +213,7 @@ void Microstrain::run() {
 
   ////////////////////////////////////////
   // Device setup
-  float kdT = 0.5;  // common sleep time after setup communications
+  float dT = 0.5;  // common sleep time after setup communications
   if (device_setup) {
     // Put device into standard mode - we never really use "direct mode"
     ROS_INFO("Putting device communications into 'standard mode'");
@@ -312,7 +228,7 @@ void Microstrain::run() {
                                &com_mode) != MIP_INTERFACE_OK) {
     }
     ROS_INFO("Sleep for a second...");
-    ros::Duration(kdT).sleep();
+    ros::Duration(dT).sleep();
     ROS_INFO("Right mode?");
     if (com_mode != MIP_SDK_GX4_45_IMU_STANDARD_MODE) {
       ROS_ERROR("Appears we didn't get into standard mode!");
@@ -322,12 +238,86 @@ void Microstrain::run() {
     ROS_INFO("Idling Device: Stopping data streams and/or waking from sleep");
     while (mip_base_cmd_idle(&device_interface_) != MIP_INTERFACE_OK) {
     }
-    ros::Duration(kdT).sleep();
+    ros::Duration(dT).sleep();
 
     // AHRS Setup
     // Get base rate
     if (publish_imu_) {
-      setup_imu();
+      while (mip_3dm_cmd_get_ahrs_base_rate(&device_interface_, &base_rate) !=
+             MIP_INTERFACE_OK) {
+      }
+      ROS_INFO("AHRS Base Rate => %d Hz", base_rate);
+      ros::Duration(dT).sleep();
+      // Deterimine decimation to get close to goal rate
+      u8 imu_decimation = (u8)((float)base_rate / (float)imu_rate_);
+      ROS_INFO("AHRS decimation set to %#04X", imu_decimation);
+
+      // AHRS Message Format
+      // Set message format
+      ROS_INFO("Setting the AHRS message format");
+      data_stream_format_descriptors[0] = MIP_AHRS_DATA_ACCEL_SCALED;
+      data_stream_format_descriptors[1] = MIP_AHRS_DATA_GYRO_SCALED;
+      data_stream_format_descriptors[2] = MIP_AHRS_DATA_QUATERNION;
+      data_stream_format_decimation[0] = imu_decimation;  // 0x32;
+      data_stream_format_decimation[1] = imu_decimation;  // 0x32;
+      data_stream_format_decimation[2] = imu_decimation;  // 0x32;
+      data_stream_format_num_entries = 3;
+      while (mip_3dm_cmd_ahrs_message_format(
+                 &device_interface_, MIP_FUNCTION_SELECTOR_WRITE,
+                 &data_stream_format_num_entries,
+                 data_stream_format_descriptors,
+                 data_stream_format_decimation) != MIP_INTERFACE_OK) {
+      }
+      ros::Duration(dT).sleep();
+      // Poll to verify
+      ROS_INFO("Poll AHRS data to verify");
+      while (mip_3dm_cmd_poll_ahrs(
+                 &device_interface_, MIP_3DM_POLLING_ENABLE_ACK_NACK,
+                 data_stream_format_num_entries,
+                 data_stream_format_descriptors) != MIP_INTERFACE_OK) {
+      }
+      ros::Duration(dT).sleep();
+      // Save
+      if (save_settings) {
+        ROS_INFO("Saving AHRS data settings");
+        while (mip_3dm_cmd_ahrs_message_format(
+                   &device_interface_, MIP_FUNCTION_SELECTOR_STORE_EEPROM, 0,
+                   NULL, NULL) != MIP_INTERFACE_OK) {
+        }
+        ros::Duration(dT).sleep();
+      }
+
+      // Declination Source
+      // Set declination
+      ROS_INFO("Setting declination source to %#04X", declination_source_u8);
+      while (mip_filter_declination_source(
+                 &device_interface_, MIP_FUNCTION_SELECTOR_WRITE,
+                 &declination_source_u8) != MIP_INTERFACE_OK) {
+      }
+      ros::Duration(dT).sleep();
+      // Read back the declination source
+      ROS_INFO("Reading back declination source");
+      while (mip_filter_declination_source(
+                 &device_interface_, MIP_FUNCTION_SELECTOR_READ,
+                 &readback_declination_source) != MIP_INTERFACE_OK) {
+      }
+      if (declination_source_u8 == readback_declination_source) {
+        ROS_INFO("Success: Declination source set to %#04X",
+                 declination_source_u8);
+      } else {
+        ROS_WARN("Failed to set the declination source to %#04X!",
+                 declination_source_u8);
+      }
+      ros::Duration(dT).sleep();
+      if (save_settings) {
+        ROS_INFO("Saving declination source settings to EEPROM");
+        while (mip_filter_declination_source(&device_interface_,
+                                             MIP_FUNCTION_SELECTOR_STORE_EEPROM,
+                                             NULL) != MIP_INTERFACE_OK) {
+        }
+        ros::Duration(dT).sleep();
+      }
+
     }  // end of AHRS setup
 
     // GPS Setup
@@ -337,7 +327,7 @@ void Microstrain::run() {
       }
       ROS_INFO("GPS Base Rate => %d Hz", base_rate);
       u8 gps_decimation = (u8)((float)base_rate / (float)gps_rate_);
-      ros::Duration(kdT).sleep();
+      ros::Duration(dT).sleep();
 
       ////////// GPS Message Format
       // Set
@@ -355,7 +345,7 @@ void Microstrain::run() {
                  data_stream_format_descriptors,
                  data_stream_format_decimation) != MIP_INTERFACE_OK) {
       }
-      ros::Duration(kdT).sleep();
+      ros::Duration(dT).sleep();
       // Save
       if (save_settings) {
         ROS_INFO("Saving GPS data settings");
@@ -363,309 +353,231 @@ void Microstrain::run() {
                    &device_interface_, MIP_FUNCTION_SELECTOR_STORE_EEPROM, 0,
                    NULL, NULL) != MIP_INTERFACE_OK) {
         }
-        ros::Duration(kdT).sleep();
+        ros::Duration(dT).sleep();
       }
     }  // end of GPS setup
-    if (enable_filter) {
-      while (mip_3dm_cmd_get_ahrs_base_rate(&device_interface_, &base_rate) !=
+
+    if (publish_odom_) {
+      while (mip_3dm_cmd_get_filter_base_rate(&device_interface_, &base_rate) !=
              MIP_INTERFACE_OK) {
       }
-      ROS_INFO("AHRS Base Rate => %d Hz", base_rate);
-      ros::Duration(kdT).sleep();
-      // Deterimine decimation to get close to goal rate
-      u8 imu_decimation = (u8)((float)base_rate / (float)imu_rate_);
-      ROS_INFO("AHRS decimation set to %#04X", imu_decimation);
+      ROS_INFO("FILTER Base Rate => %d Hz", base_rate);
+      u8 nav_decimation = (u8)((float)base_rate / (float)nav_rate_);
+      ros::Duration(dT).sleep();
 
-      // AHRS Message Format
-      // Set message format
-      ROS_INFO("Setting the AHRS message format");
-      data_stream_format_descriptors[0] = MIP_FILTER_DATA_ATT_QUATERNION;
-      data_stream_format_descriptors[1] = MIP_FILTER_DATA_ATT_UNCERTAINTY_EULER;
-      data_stream_format_descriptors[2] = MIP_FILTER_DATA_GYRO_BIAS_UNCERTAINTY;
-      data_stream_format_descriptors[3] = MIP_FILTER_DATA_LINEAR_ACCELERATION;
-      data_stream_format_descriptors[3] = MIP_AHRS_DATA_GYRO_SCALED;
-      data_stream_format_decimation[0] = imu_decimation;  // 0x32;
-      data_stream_format_decimation[1] = imu_decimation;  // 0x32;
-      data_stream_format_decimation[2] = imu_decimation;  // 0x32;
-      data_stream_format_num_entries = 3;
-      while (mip_3dm_cmd_ahrs_message_format(
+      ////////// Filter Message Format
+      // Set
+      ROS_INFO("Setting Filter stream format");
+      data_stream_format_descriptors[0] = MIP_FILTER_DATA_LLH_POS;
+      data_stream_format_descriptors[1] = MIP_FILTER_DATA_NED_VEL;
+      // data_stream_format_descriptors[2] = MIP_FILTER_DATA_ATT_EULER_ANGLES;
+      data_stream_format_descriptors[2] = MIP_FILTER_DATA_ATT_QUATERNION;
+      data_stream_format_descriptors[3] = MIP_FILTER_DATA_POS_UNCERTAINTY;
+      data_stream_format_descriptors[4] = MIP_FILTER_DATA_VEL_UNCERTAINTY;
+      data_stream_format_descriptors[5] = MIP_FILTER_DATA_ATT_UNCERTAINTY_EULER;
+      data_stream_format_descriptors[6] =
+          MIP_FILTER_DATA_COMPENSATED_ANGULAR_RATE;
+      data_stream_format_descriptors[7] = MIP_FILTER_DATA_FILTER_STATUS;
+      data_stream_format_decimation[0] = nav_decimation;  // 0x32;
+      data_stream_format_decimation[1] = nav_decimation;  // 0x32;
+      data_stream_format_decimation[2] = nav_decimation;  // 0x32;
+      data_stream_format_decimation[3] = nav_decimation;  // 0x32;
+      data_stream_format_decimation[4] = nav_decimation;  // 0x32;
+      data_stream_format_decimation[5] = nav_decimation;  // 0x32;
+      data_stream_format_decimation[6] = nav_decimation;  // 0x32;
+      data_stream_format_decimation[7] = nav_decimation;  // 0x32;
+      data_stream_format_num_entries = 8;
+      while (mip_3dm_cmd_filter_message_format(
                  &device_interface_, MIP_FUNCTION_SELECTOR_WRITE,
                  &data_stream_format_num_entries,
                  data_stream_format_descriptors,
                  data_stream_format_decimation) != MIP_INTERFACE_OK) {
       }
-      ros::Duration(kdT).sleep();
+      ros::Duration(dT).sleep();
       // Poll to verify
-      ROS_INFO("Poll AHRS data to verify");
-      while (mip_3dm_cmd_poll_ahrs(
+      ROS_INFO("Poll filter data to test stream");
+      while (mip_3dm_cmd_poll_filter(
                  &device_interface_, MIP_3DM_POLLING_ENABLE_ACK_NACK,
                  data_stream_format_num_entries,
                  data_stream_format_descriptors) != MIP_INTERFACE_OK) {
       }
-      ros::Duration(kdT).sleep();
+      ros::Duration(dT).sleep();
       // Save
       if (save_settings) {
-        ROS_INFO("Saving AHRS data settings");
-        while (mip_3dm_cmd_ahrs_message_format(
+        ROS_INFO("Saving Filter data settings");
+        while (mip_3dm_cmd_filter_message_format(
                    &device_interface_, MIP_FUNCTION_SELECTOR_STORE_EEPROM, 0,
                    NULL, NULL) != MIP_INTERFACE_OK) {
         }
-        ros::Duration(kdT).sleep();
+        ros::Duration(dT).sleep();
       }
-
-      // Declination Source
-      // Set declination
-      ROS_INFO("Setting declination source to %#04X", declination_source_u8);
-      while (mip_filter_declination_source(
+      // Dynamics Mode
+      // Set dynamics mode
+      ROS_INFO("Setting dynamics mode to %#04X", dynamics_mode);
+      while (mip_filter_vehicle_dynamics_mode(
                  &device_interface_, MIP_FUNCTION_SELECTOR_WRITE,
-                 &declination_source_u8) != MIP_INTERFACE_OK) {
+                 &dynamics_mode) != MIP_INTERFACE_OK) {
       }
-      ros::Duration(kdT).sleep();
-      // Read back the declination source
-      ROS_INFO("Reading back declination source");
-      while (mip_filter_declination_source(
-                 &device_interface_, MIP_FUNCTION_SELECTOR_READ,
-                 &readback_declination_source) != MIP_INTERFACE_OK) {
-      }
-      if (declination_source_u8 == readback_declination_source) {
-        ROS_INFO("Success: Declination source set to %#04X",
-                 declination_source_u8);
-      } else {
-        ROS_WARN("Failed to set the declination source to %#04X!",
-                 declination_source_u8);
-      }
-      ros::Duration(kdT).sleep();
-      if (save_settings) {
-        ROS_INFO("Saving declination source settings to EEPROM");
-        while (mip_filter_declination_source(&device_interface_,
-                                             MIP_FUNCTION_SELECTOR_STORE_EEPROM,
-                                             NULL) != MIP_INTERFACE_OK) {
+      ros::Duration(dT).sleep();
+      // Readback dynamics mode
+      if (readback_settings) {
+        // Read the settings back
+        ROS_INFO("Reading back dynamics mode setting");
+        while (mip_filter_vehicle_dynamics_mode(
+                   &device_interface_, MIP_FUNCTION_SELECTOR_READ,
+                   &readback_dynamics_mode) != MIP_INTERFACE_OK) {
         }
-        ros::Duration(kdT).sleep();
+        ros::Duration(dT).sleep();
+        if (dynamics_mode == readback_dynamics_mode)
+          ROS_INFO("Success: Dynamics mode setting is: %#04X",
+                   readback_dynamics_mode);
+        else
+          ROS_ERROR(
+              "Failure: Dynamics mode set to be %#04X, but reads as %#04X",
+              dynamics_mode, readback_dynamics_mode);
+      }
+      if (save_settings) {
+        ROS_INFO("Saving dynamics mode settings to EEPROM");
+        while (mip_filter_vehicle_dynamics_mode(
+                   &device_interface_, MIP_FUNCTION_SELECTOR_STORE_EEPROM,
+                   NULL) != MIP_INTERFACE_OK) {
+        }
+        ros::Duration(dT).sleep();
       }
 
-    }  // end of FILTER setup
-  }
-  if (publish_odom_) {
-    while (mip_3dm_cmd_get_filter_base_rate(&device_interface_, &base_rate) !=
-           MIP_INTERFACE_OK) {
-    }
-    ROS_INFO("FILTER Base Rate => %d Hz", base_rate);
-    u8 nav_decimation = (u8)((float)base_rate / (float)nav_rate_);
-    ros::Duration(kdT).sleep();
-
-    ////////// Filter Message Format
-    // Set
-    ROS_INFO("Setting Filter stream format");
-    data_stream_format_descriptors[0] = MIP_FILTER_DATA_LLH_POS;
-    data_stream_format_descriptors[1] = MIP_FILTER_DATA_NED_VEL;
-    // data_stream_format_descriptors[2] = MIP_FILTER_DATA_ATT_EULER_ANGLES;
-    data_stream_format_descriptors[2] = MIP_FILTER_DATA_ATT_QUATERNION;
-    data_stream_format_descriptors[3] = MIP_FILTER_DATA_POS_UNCERTAINTY;
-    data_stream_format_descriptors[4] = MIP_FILTER_DATA_VEL_UNCERTAINTY;
-    data_stream_format_descriptors[5] = MIP_FILTER_DATA_ATT_UNCERTAINTY_EULER;
-    data_stream_format_descriptors[6] =
-        MIP_FILTER_DATA_COMPENSATED_ANGULAR_RATE;
-    data_stream_format_descriptors[7] = MIP_FILTER_DATA_FILTER_STATUS;
-    data_stream_format_decimation[0] = nav_decimation;  // 0x32;
-    data_stream_format_decimation[1] = nav_decimation;  // 0x32;
-    data_stream_format_decimation[2] = nav_decimation;  // 0x32;
-    data_stream_format_decimation[3] = nav_decimation;  // 0x32;
-    data_stream_format_decimation[4] = nav_decimation;  // 0x32;
-    data_stream_format_decimation[5] = nav_decimation;  // 0x32;
-    data_stream_format_decimation[6] = nav_decimation;  // 0x32;
-    data_stream_format_decimation[7] = nav_decimation;  // 0x32;
-    data_stream_format_num_entries = 8;
-    while (mip_3dm_cmd_filter_message_format(
-               &device_interface_, MIP_FUNCTION_SELECTOR_WRITE,
-               &data_stream_format_num_entries, data_stream_format_descriptors,
-               data_stream_format_decimation) != MIP_INTERFACE_OK) {
-    }
-    ros::Duration(kdT).sleep();
-    // Poll to verify
-    ROS_INFO("Poll filter data to test stream");
-    while (mip_3dm_cmd_poll_filter(
-               &device_interface_, MIP_3DM_POLLING_ENABLE_ACK_NACK,
-               data_stream_format_num_entries,
-               data_stream_format_descriptors) != MIP_INTERFACE_OK) {
-    }
-    ros::Duration(kdT).sleep();
-    // Save
-    if (save_settings) {
-      ROS_INFO("Saving Filter data settings");
-      while (mip_3dm_cmd_filter_message_format(
-                 &device_interface_, MIP_FUNCTION_SELECTOR_STORE_EEPROM, 0,
-                 NULL, NULL) != MIP_INTERFACE_OK) {
+      // Heading Source
+      ROS_INFO("Set heading source to internal mag.");
+      heading_source = 0x1;
+      ROS_INFO("Setting heading source to %#04X", heading_source);
+      while (mip_filter_heading_source(&device_interface_,
+                                       MIP_FUNCTION_SELECTOR_WRITE,
+                                       &heading_source) != MIP_INTERFACE_OK) {
       }
-      ros::Duration(kdT).sleep();
+      ros::Duration(dT).sleep();
+
+      ROS_INFO("Read back heading source...");
+      while (mip_filter_heading_source(
+                 &device_interface_, MIP_FUNCTION_SELECTOR_READ,
+                 &readback_headingsource) != MIP_INTERFACE_OK) {
+      }
+      ROS_INFO("Heading source = %#04X", readback_headingsource);
+      ros::Duration(dT).sleep();
+
+      if (save_settings) {
+        ROS_INFO("Saving heading source to EEPROM");
+        while (mip_filter_heading_source(&device_interface_,
+                                         MIP_FUNCTION_SELECTOR_STORE_EEPROM,
+                                         NULL) != MIP_INTERFACE_OK) {
+        }
+        ros::Duration(dT).sleep();
+      }
+    }  // end of Filter setup
+
+    // I believe the auto-init pertains to the kalman filter for the -45
+    // OR for the complementary filter for the -25  - need to test
+    // Auto Initialization
+    // Set auto-initialization based on ROS parameter
+    ROS_INFO("Setting auto-initinitalization to: %#04X", auto_init);
+    auto_init_u8 = auto_init;  // convert bool to u8
+    while (mip_filter_auto_initialization(&device_interface_,
+                                          MIP_FUNCTION_SELECTOR_WRITE,
+                                          &auto_init_u8) != MIP_INTERFACE_OK) {
     }
-    // Dynamics Mode
-    // Set dynamics mode
-    ROS_INFO("Setting dynamics mode to %#04X", dynamics_mode);
-    while (mip_filter_vehicle_dynamics_mode(
-               &device_interface_, MIP_FUNCTION_SELECTOR_WRITE,
-               &dynamics_mode) != MIP_INTERFACE_OK) {
-    }
-    ros::Duration(kdT).sleep();
-    // Readback dynamics mode
+    ros::Duration(dT).sleep();
+
     if (readback_settings) {
       // Read the settings back
-      ROS_INFO("Reading back dynamics mode setting");
-      while (mip_filter_vehicle_dynamics_mode(
+      ROS_INFO("Reading back auto-initialization value");
+      while (mip_filter_auto_initialization(
                  &device_interface_, MIP_FUNCTION_SELECTOR_READ,
-                 &readback_dynamics_mode) != MIP_INTERFACE_OK) {
+                 &readback_auto_init) != MIP_INTERFACE_OK) {
       }
-      ros::Duration(kdT).sleep();
-      if (dynamics_mode == readback_dynamics_mode)
-        ROS_INFO("Success: Dynamics mode setting is: %#04X",
-                 readback_dynamics_mode);
+      ros::Duration(dT).sleep();
+      if (auto_init == readback_auto_init)
+        ROS_INFO("Success: Auto init. setting is: %#04X", readback_auto_init);
       else
-        ROS_ERROR("Failure: Dynamics mode set to be %#04X, but reads as %#04X",
-                  dynamics_mode, readback_dynamics_mode);
+        ROS_ERROR(
+            "Failure: Auto init. setting set to be %#04X, but reads as %#04X",
+            auto_init, readback_auto_init);
     }
     if (save_settings) {
-      ROS_INFO("Saving dynamics mode settings to EEPROM");
-      while (mip_filter_vehicle_dynamics_mode(
-                 &device_interface_, MIP_FUNCTION_SELECTOR_STORE_EEPROM,
-                 NULL) != MIP_INTERFACE_OK) {
+      ROS_INFO("Saving auto init. settings to EEPROM");
+      while (mip_filter_auto_initialization(&device_interface_,
+                                            MIP_FUNCTION_SELECTOR_STORE_EEPROM,
+                                            NULL) != MIP_INTERFACE_OK) {
       }
-      ros::Duration(kdT).sleep();
+      ros::Duration(dT).sleep();
     }
 
-    // Heading Source
-    ROS_INFO("Set heading source to internal mag.");
-    heading_source = 0x1;
-    ROS_INFO("Setting heading source to %#04X", heading_source);
-    while (mip_filter_heading_source(&device_interface_,
-                                     MIP_FUNCTION_SELECTOR_WRITE,
-                                     &heading_source) != MIP_INTERFACE_OK) {
-    }
-    ros::Duration(kdT).sleep();
-
-    ROS_INFO("Read back heading source...");
-    while (mip_filter_heading_source(
-               &device_interface_, MIP_FUNCTION_SELECTOR_READ,
-               &readback_headingsource) != MIP_INTERFACE_OK) {
-    }
-    ROS_INFO("Heading source = %#04X", readback_headingsource);
-    ros::Duration(kdT).sleep();
-
-    if (save_settings) {
-      ROS_INFO("Saving heading source to EEPROM");
-      while (mip_filter_heading_source(&device_interface_,
-                                       MIP_FUNCTION_SELECTOR_STORE_EEPROM,
-                                       NULL) != MIP_INTERFACE_OK) {
+    // Enable Data streams
+    dT = 0.25;
+    if (publish_imu_) {
+      ROS_INFO("Enabling AHRS stream");
+      enable = 0x01;
+      while (mip_3dm_cmd_continuous_data_stream(
+                 &device_interface_, MIP_FUNCTION_SELECTOR_WRITE,
+                 MIP_3DM_AHRS_DATASTREAM, &enable) != MIP_INTERFACE_OK) {
       }
-      ros::Duration(kdT).sleep();
+      ros::Duration(dT).sleep();
     }
-  }  // end of Filter setup
-
-  // I believe the auto-init pertains to the kalman filter for the -45
-  // OR for the complementary filter for the -25  - need to test
-  // Auto Initialization
-  // Set auto-initialization based on ROS parameter
-  ROS_INFO("Setting auto-initinitalization to: %#04X", auto_init);
-  auto_init_u8 = auto_init;  // convert bool to u8
-  while (mip_filter_auto_initialization(&device_interface_,
-                                        MIP_FUNCTION_SELECTOR_WRITE,
-                                        &auto_init_u8) != MIP_INTERFACE_OK) {
-  }
-  ros::Duration(kdT).sleep();
-
-  if (readback_settings) {
-    // Read the settings back
-    ROS_INFO("Reading back auto-initialization value");
-    while (mip_filter_auto_initialization(
-               &device_interface_, MIP_FUNCTION_SELECTOR_READ,
-               &readback_auto_init) != MIP_INTERFACE_OK) {
+    if (publish_odom_) {
+      ROS_INFO("Enabling Filter stream");
+      enable = 0x01;
+      while (mip_3dm_cmd_continuous_data_stream(
+                 &device_interface_, MIP_FUNCTION_SELECTOR_WRITE,
+                 MIP_3DM_INS_DATASTREAM, &enable) != MIP_INTERFACE_OK) {
+      }
+      ros::Duration(dT).sleep();
     }
-    ros::Duration(kdT).sleep();
-    if (auto_init == readback_auto_init)
-      ROS_INFO("Success: Auto init. setting is: %#04X", readback_auto_init);
-    else
-      ROS_ERROR(
-          "Failure: Auto init. setting set to be %#04X, but reads as %#04X",
-          auto_init, readback_auto_init);
-  }
-  if (save_settings) {
-    ROS_INFO("Saving auto init. settings to EEPROM");
-    while (mip_filter_auto_initialization(&device_interface_,
-                                          MIP_FUNCTION_SELECTOR_STORE_EEPROM,
-                                          NULL) != MIP_INTERFACE_OK) {
+    if (publish_gps_) {
+      ROS_INFO("Enabling GPS stream");
+      enable = 0x01;
+      while (mip_3dm_cmd_continuous_data_stream(
+                 &device_interface_, MIP_FUNCTION_SELECTOR_WRITE,
+                 MIP_3DM_GPS_DATASTREAM, &enable) != MIP_INTERFACE_OK) {
+      }
+      ros::Duration(dT).sleep();
     }
-    ros::Duration(kdT).sleep();
-  }
 
-  // Enable Data streams
-  kdT = 0.25;
+    ROS_INFO("End of device setup - starting streaming");
+  } else {
+    ROS_INFO("Skipping device setup and listing for existing streams");
+  }  // end of device_setup
+
+  // Reset filter - should be for either the KF or CF
+  ROS_INFO("Reset filter");
+  while (mip_filter_reset_filter(&device_interface_) != MIP_INTERFACE_OK) {
+  }
+  ros::Duration(dT).sleep();
+
+  // Loop
+  // Determine loop rate as 2*(max update rate), but abs. max of 1kHz
+  int max_rate = 1;
   if (publish_imu_) {
-    ROS_INFO("Enabling AHRS stream");
-    enable = 0x01;
-    while (mip_3dm_cmd_continuous_data_stream(
-               &device_interface_, MIP_FUNCTION_SELECTOR_WRITE,
-               MIP_3DM_AHRS_DATASTREAM, &enable) != MIP_INTERFACE_OK) {
-    }
-    ros::Duration(kdT).sleep();
-  }
-  if (publish_odom_) {
-    ROS_INFO("Enabling Filter stream");
-    enable = 0x01;
-    while (mip_3dm_cmd_continuous_data_stream(
-               &device_interface_, MIP_FUNCTION_SELECTOR_WRITE,
-               MIP_3DM_INS_DATASTREAM, &enable) != MIP_INTERFACE_OK) {
-    }
-    ros::Duration(kdT).sleep();
+    max_rate = std::max(max_rate, imu_rate_);
   }
   if (publish_gps_) {
-    ROS_INFO("Enabling GPS stream");
-    enable = 0x01;
-    while (mip_3dm_cmd_continuous_data_stream(
-               &device_interface_, MIP_FUNCTION_SELECTOR_WRITE,
-               MIP_3DM_GPS_DATASTREAM, &enable) != MIP_INTERFACE_OK) {
-    }
-    ros::Duration(kdT).sleep();
+    max_rate = std::max(max_rate, gps_rate_);
   }
+  if (publish_odom_) {
+    max_rate = std::max(max_rate, nav_rate_);
+  }
+  int spin_rate = std::min(3 * max_rate, 1000);
+  ROS_INFO("Setting spin rate to <%d>", spin_rate);
+  ros::Rate r(spin_rate);  // Rate in Hz
+  while (ros::ok()) {
+    // Update the parser (this function reads the port and parses the bytes
+    mip_interface_update(&device_interface_);
+    ros::spinOnce();  // take care of service requests.
+    r.sleep();
 
-  ROS_INFO("End of device setup - starting streaming");
-}
-else {
-  ROS_INFO("Skipping device setup and listing for existing streams");
-}  // end of device_setup
+    // ROS_INFO("Spinning");
+  }  // end loop
 
-// Reset filter - should be for either the KF or CF
-ROS_INFO("Reset filter");
-while (mip_filter_reset_filter(&device_interface_) != MIP_INTERFACE_OK) {
-}
-ros::Duration(kdT).sleep();
+  // close serial port
+  mip_sdk_port_close(device_interface_.port_handle);
 
-// Loop
-// Determine loop rate as 2*(max update rate), but abs. max of 1kHz
-int max_rate = 1;
-if (publish_imu_) {
-  max_rate = std::max(max_rate, imu_rate_);
-}
-if (publish_gps_) {
-  max_rate = std::max(max_rate, gps_rate_);
-}
-if (publish_odom_) {
-  max_rate = std::max(max_rate, nav_rate_);
-}
-int spin_rate = std::min(3 * max_rate, 1000);
-ROS_INFO("Setting spin rate to <%d>", spin_rate);
-ros::Rate r(spin_rate);  // Rate in Hz
-while (ros::ok()) {
-  // Update the parser (this function reads the port and parses the bytes
-  mip_interface_update(&device_interface_);
-  ros::spinOnce();  // take care of service requests.
-  r.sleep();
-
-  // ROS_INFO("Spinning");
-}  // end loop
-
-// close serial port
-mip_sdk_port_close(device_interface_.port_handle);
-
-}  // namespace Microstrain
+}  // End of ::run()
 
 bool Microstrain::reset_callback(std_srvs::Empty::Request &req,
                                  std_srvs::Empty::Response &resp) {
@@ -683,7 +595,7 @@ void Microstrain::filter_packet_callback(void *user_ptr, u8 *packet,
   u16 field_offset = 0;
 
   // If we aren't publishing, then return
-  if (!publish_odom_ && false) return;
+  if (!publish_odom_) return;
   // ROS_INFO("Filter callback");
   // The packet callback can have several types, process them all
   switch (callback_type) {
@@ -1181,19 +1093,19 @@ void Microstrain::print_packet_stats() {
 // Wrapper callbacks
 void filter_packet_callback_wrapper(void *user_ptr, u8 *packet, u16 packet_size,
                                     u8 callback_type) {
-  Microstrain *ustrain = (Microstrain *)user_ptr;
+  MicrostrainDevice *ustrain = (MicrostrainDevice *)user_ptr;
   ustrain->filter_packet_callback(user_ptr, packet, packet_size, callback_type);
 }
 
 void ahrs_packet_callback_wrapper(void *user_ptr, u8 *packet, u16 packet_size,
                                   u8 callback_type) {
-  Microstrain *ustrain = (Microstrain *)user_ptr;
+  MicrostrainDevice *ustrain = (MicrostrainDevice *)user_ptr;
   ustrain->ahrs_packet_callback(user_ptr, packet, packet_size, callback_type);
 }
 // Wrapper callbacks
 void gps_packet_callback_wrapper(void *user_ptr, u8 *packet, u16 packet_size,
                                  u8 callback_type) {
-  Microstrain *ustrain = (Microstrain *)user_ptr;
+  MicrostrainDevice *ustrain = (MicrostrainDevice *)user_ptr;
   ustrain->gps_packet_callback(user_ptr, packet, packet_size, callback_type);
 }
 

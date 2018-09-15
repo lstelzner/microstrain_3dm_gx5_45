@@ -85,9 +85,9 @@ set(MIPSRC
 )
 
 # Libraries
-add_library(microstrain_3dm_gx5_25
-
-  src/gx5_25.cpp
+add_library(microstrain_3dm_gx5
+  src/microstrain_3dm_gx5_45.cpp
+  src/3dm_gx5_25.cpp
   src/mip_sdk_user_functions.c
   ${MIPSRC}
 )
@@ -101,15 +101,22 @@ add_executable(GX4-45_Test
 add_executable(microstrain_3dm_gx5_45_node
   src/microstrain_3dm_gx5_45_node.cpp
 )
+add_executable(microstrain_3dm_gx5_25_node
+  src/microstrain_3dm_gx5_25_node.cpp
+)
 
 # Linking
 target_link_libraries(GX4-45_Test rt)
 
-target_link_libraries(microstrain_3dm_gx5_25
+target_link_libraries(microstrain_3dm_gx5
   ${catkin_LIBRARIES}
 )
 target_link_libraries(microstrain_3dm_gx5_45_node
-  microstrain_3dm_gx5_25
+  microstrain_3dm_gx5
+  ${catkin_LIBRARIES}
+)
+target_link_libraries(microstrain_3dm_gx5_25_node
+  microstrain_3dm_gx5
   ${catkin_LIBRARIES}
 )
 
@@ -117,7 +124,9 @@ target_link_libraries(microstrain_3dm_gx5_45_node
 ## Install ##
 #############
 
-install(TARGETS microstrain_3dm_gx5_25 microstrain_3dm_gx5_45_node
+install(TARGETS microstrain_3dm_gx5
+                microstrain_3dm_gx5_45_node
+                microstrain_3dm_gx5_25_node
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}

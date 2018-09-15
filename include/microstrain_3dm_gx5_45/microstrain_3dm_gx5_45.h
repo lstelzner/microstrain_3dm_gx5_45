@@ -32,6 +32,7 @@ extern "C" {
 #include "mip_gx4_imu.h"
 #include "mip_sdk.h"
 }
+#include "microstrain.h"
 
 #include <unistd.h>
 #include <cstdio>
@@ -64,7 +65,7 @@ namespace Microstrain {
  * \brief Microstrain class
  *
  */
-class Microstrain {
+class Microstrain : public MicrostrainDevice {
  public:
   /**
    * Contructor
@@ -163,31 +164,33 @@ class Microstrain {
   int gps_rate_;
 };  // Microstrain class
 
-// Define wrapper functions that call the Microstrain member functions
-#ifdef __cplusplus
-extern "C"
-#endif
-{
+// // Define wrapper functions that call the Microstrain member functions
+// #ifdef __cplusplus
+// extern "C"
+// #endif
+// {
 
-/**
- * Callback for KF estimate packets from sensor.
- */
-void filter_packet_callback_wrapper(void *user_ptr, u8 *packet, u16 packet_size,
-                                    u8 callback_type);
-/**
- * Callback for AHRS packets from sensor.
- */
-void ahrs_packet_callback_wrapper(void *user_ptr, u8 *packet, u16 packet_size,
-                                  u8 callback_type);
-/**
- * Callback for GPS packets from sensor.
- */
-void gps_packet_callback_wrapper(void *user_ptr, u8 *packet, u16 packet_size,
-                                 u8 callback_type);
+// /**
+//  * Callback for KF estimate packets from sensor.
+//  */
+// void filter_packet_callback_wrapper(void *user_ptr, u8 *packet, u16
+// packet_size,
+//                                     u8 callback_type);
+// /**
+//  * Callback for AHRS packets from sensor.
+//  */
+// void ahrs_packet_callback_wrapper(void *user_ptr, u8 *packet, u16
+// packet_size,
+//                                   u8 callback_type);
+// /**
+//  * Callback for GPS packets from sensor.
+//  */
+// void gps_packet_callback_wrapper(void *user_ptr, u8 *packet, u16 packet_size,
+//                                  u8 callback_type);
 
-#ifdef __cplusplus
-}
-#endif
+// #ifdef __cplusplus
+// }
+// #endif
 
 }  // namespace Microstrain
 

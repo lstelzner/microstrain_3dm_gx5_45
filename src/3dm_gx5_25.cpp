@@ -1,5 +1,28 @@
+/*
 
-#include "gx5_25.h"
+Copyright (c) 2017, Brian Bingham
+All rights reserved
+
+This file is part of the microstrain_3dm_gx5_45 package.
+
+microstrain_3dm_gx5_45 is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+microstrain_3dm_gx5_45 is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+
+
+Note:Used gx5_45 as base and editted out un-supported portions
+*/
+
+#include "3dm_gx5_25.h"
 #include <tf2/LinearMath/Transform.h>
 #include <algorithm>
 #include <string>
@@ -95,7 +118,7 @@ void Microstrain_25::setup_node() {
     return;
   }
   ROS_INFO("Node successfully configured");
-}
+}  // namespace Microstrain
 
 void Microstrain_25::setup_device() {
   tf2::Quaternion quat;
@@ -195,13 +218,13 @@ void Microstrain_25::setup_device() {
       ////////// Filter Message Format
       // Set
       ROS_INFO("Setting Filter stream format");
+      // Note: -25 does not support all the filter settings that -45 does
       data_stream_format_descriptors[0] = MIP_FILTER_DATA_ATT_EULER_ANGLES;
       data_stream_format_descriptors[1] = MIP_FILTER_DATA_ATT_QUATERNION;
       data_stream_format_descriptors[2] =
           MIP_FILTER_DATA_COMPENSATED_ANGULAR_RATE;
       data_stream_format_descriptors[3] = MIP_FILTER_DATA_LINEAR_ACCELERATION;
       data_stream_format_descriptors[4] = MIP_FILTER_DATA_ATT_UNCERTAINTY_EULER;
-      // data_stream_format_descriptors[4] = MIP_FILTER_DATA_VEL_UNCERTAINTY;
       data_stream_format_descriptors[5] = MIP_FILTER_DATA_GYRO_BIAS_UNCERTAINTY;
       data_stream_format_descriptors[6] = MIP_FILTER_DATA_FILTER_STATUS;
 
@@ -237,39 +260,6 @@ void Microstrain_25::setup_device() {
         }
         ros::Duration(dT).sleep();
       }
-      // Dynamics Mode
-      // Set dynamics mode
-      //   ROS_INFO("Setting dynamics mode to %#04X", dynamics_mode_);
-      //   while (mip_filter_vehicle_dynamics_mode(
-      //              &device_interface_, MIP_FUNCTION_SELECTOR_WRITE,
-      //              &dynamics_mode_) != MIP_INTERFACE_OK) {
-      //   }
-      //   ros::Duration(dT).sleep();
-      //   // Readback dynamics mode
-      //   if (readback_settings_) {
-      //     // Read the settings back
-      //     ROS_INFO("Reading back dynamics mode setting");
-      //     while (mip_filter_vehicle_dynamics_mode(
-      //                &device_interface_, MIP_FUNCTION_SELECTOR_READ,
-      //                &readback_dynamics_mode_) != MIP_INTERFACE_OK) {
-      //     }
-      //     ros::Duration(dT).sleep();
-      //     if (dynamics_mode_ == readback_dynamics_mode_)
-      //       ROS_INFO("Success: Dynamics mode setting is: %#04X",
-      //                readback_dynamics_mode_);
-      //     else
-      //       ROS_ERROR(
-      //           "Failure: Dynamics mode set to be %#04X, but reads as %#04X",
-      //           dynamics_mode_, readback_dynamics_mode_);
-      //   }
-      //   if (save_settings_) {
-      //     ROS_INFO("Saving dynamics mode settings to EEPROM");
-      //     while (mip_filter_vehicle_dynamics_mode(
-      //                &device_interface_, MIP_FUNCTION_SELECTOR_STORE_EEPROM,
-      //                NULL) != MIP_INTERFACE_OK) {
-      //     }
-      //     ros::Duration(dT).sleep();
-      //   }
 
       // Heading Source
       ROS_INFO("Set heading source to internal mag.");
@@ -573,10 +563,14 @@ void Microstrain_25::filter_packet_callback(void *user_ptr, u8 *packet,
   print_packet_stats();
 }  // filter_packet_callback
 
-void filter_packet_callback_wrapper(void *user_ptr, u8 *packet, u16 packet_size,
-                                    u8 callback_type) {
-  Microstrain_25 *ustrain = (Microstrain_25 *)user_ptr;
-  ustrain->filter_packet_callback(user_ptr, packet, packet_size, callback_type);
+void Microstrain_25::ahrs_packet_callback(void *user_ptr, u8 *packet,
+                                          u16 packet_size, u8 callback_type) {
+  ROS_WARN("AHRS not implemented for 25");
+}
+
+void Microstrain_25::gps_packet_callback(void *user_ptr, u8 *packet,
+                                         u16 packet_size, u8 callback_type) {
+  ROS_WARN("GPS not implemented for 25");
 }
 
 }  // namespace Microstrain
